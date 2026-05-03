@@ -64,17 +64,6 @@ parser.add_argument("--patch_size", type=list, default=[256, 256], help="patch s
 parser.add_argument("--seed", type=int, default=1337, help="random seed")
 parser.add_argument("--num_classes", type=int, default=4, help="number of classes")
 parser.add_argument("--img_channels", type=int, default=1, help="input image channels")
-# ---- Student SAM auxiliary branch ----
-parser.add_argument("--use_sam_aux", type=int, default=0, help="use frozen SAM image encoder as student auxiliary feature branch")
-parser.add_argument("--sam_ckpt", type=str, default="", help="path to SAM checkpoint (.pth)")
-parser.add_argument("--sam_model_type", type=str, default="vit_b", help="SAM model type: vit_b / vit_l / vit_h")
-parser.add_argument("--sam_img_size", type=int, default=1024, help="SAM encoder input size")
-parser.add_argument("--sam_max_gain", type=float, default=0.05, help="max residual gain for SAM auxiliary feature")
-parser.add_argument("--sam_gate_init", type=float, default=-7.0, help="initial logit for SAM fusion gate; smaller is safer")
-parser.add_argument("--sam_warmup_iters", type=int, default=5000, help="enable SAM fusion after this many iterations during training")
-parser.add_argument("--load", default=False, action="store_true", help="restore checkpoint from snapshot_path")
-parser.add_argument("--conf_thresh", type=float, default=0.8, help="confidence threshold for pseudo labels")
-parser.add_argument("--refine_start", type=int, default=1000, help="start iter to distill from teacher")
 
 # ---- Consistency / loss weights ----
 parser.add_argument("--consistency_type", type=str, default="mse", help="consistency type")
