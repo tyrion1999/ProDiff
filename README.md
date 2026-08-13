@@ -11,7 +11,7 @@ PyTorch implementation of ProDiff for semi-supervised medical image segmentation
 ```bash
 conda create -n prodiff python=3.10
 conda activate prodiff
-pip install -r requirement.txt
+pip install -r requirements.txt
 ```
 
 ## Data preparation
