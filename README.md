@@ -3,7 +3,8 @@
 PyTorch implementation of ProDiff for semi-supervised medical image segmentation.
 
 **Author**: Yang Zuo  
-**Email**: 666zy666@163.com
+**Email**: 666zy666@163.com  
+**Affiliation**: School of Artificial Intelligence and Computer Science, Jiangnan University, Wuxi, China
 
 ## Installation
 
