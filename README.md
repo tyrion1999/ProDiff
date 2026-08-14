@@ -104,4 +104,4 @@ CUDA_VISIBLE_DEVICES=0 python test_2D_ACDC.py --root_path ./dataset/ACDC --ckpt 
 
 ## Acknowledgement
 
-We sincerely appreciate [SSL4MIS](https://github.com/HiLab-git/SSL4MIS), [guided-diffusion](https://github.com/openai/guided-diffusion), [GSS](https://github.com/fudan-zvg/GSS), [DiffUNet](https://github.com/ge-xing/Diff-UNet) for their awesome codebases. If you have any questions, contact 666zy666@163.com or open an issue.
+We sincerely appreciate [DiffRect](https://github.com/CUHK-AIM-Group/DiffRect), [SSL4MIS](https://github.com/HiLab-git/SSL4MIS), [guided-diffusion](https://github.com/openai/guided-diffusion), [GSS](https://github.com/fudan-zvg/GSS), [DiffUNet](https://github.com/ge-xing/Diff-UNet) for their awesome codebases. If you have any questions, contact 666zy666@163.com or open an issue.
