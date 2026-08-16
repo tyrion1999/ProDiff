@@ -1,4 +1,4 @@
-# ProDiff
+# ProDiff：Progressive Diffusion-based Pseudo-label Rectification Framework for Semi-Supervised Medical Image Segmentation
 
 PyTorch implementation of ProDiff for semi-supervised medical image segmentation.
 
@@ -115,6 +115,16 @@ We provide pretrained segmentation models for all experimental settings. The cor
 | **MS-CMRSEG19** | 20% (Split 2) | [Baidu Netdisk](https://pan.baidu.com/s/1rVAEjuDri7rLqj-hrNIiVQ?pwd=neb8)|
 
 During inference, only the lightweight segmentation network is required; the diffusion-based rectifier is used only during training.
+
+
+## Citation
+
+If you find this repository useful for your research, please consider citing our work.
+
+> **ProDiff: Progressive Diffusion-based Pseudo-label Rectification Framework for Semi-Supervised Medical Image Segmentation**
+
+The paper is currently under review. The BibTeX citation will be updated after publication.
+
 
 ## Acknowledgement
 
