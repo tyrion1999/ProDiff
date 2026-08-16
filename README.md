@@ -1,6 +1,5 @@
 # ProDiff: Progressive Diffusion-based Pseudo-label Rectification Framework for Semi-Supervised Medical Image Segmentation
 
-📄 **Paper** | 💻 **Code** | 🎯 **Project**
 
 PyTorch implementation of ProDiff for semi-supervised medical image segmentation.
 
