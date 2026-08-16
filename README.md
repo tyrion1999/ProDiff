@@ -101,9 +101,20 @@ Use the following command to evaluate a trained ProDiff model on ACDC:
 ```bash
 CUDA_VISIBLE_DEVICES=0 python test_2D_ACDC.py --root_path ./dataset/ACDC --ckpt /path/to/checkpoint.pth --num_classes 4
 ```
-## Inference
+## Pretrained Models
 
-You can download our pretrained models for different datasets from [this](https://pan.baidu.com/s/1N9LF3Or9Chjbqh9_kvaXCg?pwd=6iwx). Please note that the repository is still being updated, and more checkpoints will be uploaded.
+We provide pretrained segmentation models for all experimental settings. The corresponding checkpoints can be downloaded from Baidu Netdisk.
+
+| Dataset | Labeled Setting | Pretrained Models |
+|---|---|---|
+| **ACDC** | 5% | [Baidu Netdisk](YOUR_ACDC_5_LINK)  |
+| **ACDC** | 10% | [Baidu Netdisk](YOUR_ACDC_10_LINK) |
+| **MSD Prostate** | 10% (Split 1) | [Baidu Netdisk](YOUR_PROSTATE_SPLIT1_LINK) |
+| **MSD Prostate** | 10% (Split 2) | [Baidu Netdisk](YOUR_PROSTATE_SPLIT2_LINK)  |
+| **MS-CMRSEG19** | 20% (Split 1) | [Baidu Netdisk](YOUR_MSCMRSEG_SPLIT1_LINK)  |
+| **MS-CMRSEG19** | 20% (Split 2) | [Baidu Netdisk](YOUR_MSCMRSEG_SPLIT2_LINK)|
+
+During inference, only the lightweight segmentation network is required; the diffusion-based rectifier is used only during training.
 
 ## Acknowledgement
 
