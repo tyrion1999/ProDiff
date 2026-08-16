@@ -107,12 +107,12 @@ We provide pretrained segmentation models for all experimental settings. The cor
 
 | Dataset | Labeled Setting | Pretrained Models |
 |---|---|---|
-| **ACDC** | 5% | [Baidu Netdisk](YOUR_ACDC_5_LINK)  |
-| **ACDC** | 10% | [Baidu Netdisk](YOUR_ACDC_10_LINK) |
-| **MSD Prostate** | 10% (Split 1) | [Baidu Netdisk](YOUR_PROSTATE_SPLIT1_LINK) |
-| **MSD Prostate** | 10% (Split 2) | [Baidu Netdisk](YOUR_PROSTATE_SPLIT2_LINK)  |
-| **MS-CMRSEG19** | 20% (Split 1) | [Baidu Netdisk](YOUR_MSCMRSEG_SPLIT1_LINK)  |
-| **MS-CMRSEG19** | 20% (Split 2) | [Baidu Netdisk](YOUR_MSCMRSEG_SPLIT2_LINK)|
+| **ACDC** | 5% | [Baidu Netdisk](https://pan.baidu.com/s/1cXrJlJJYpfVmXPL9WK2H5g?pwd=3k7d)  |
+| **ACDC** | 10% | [Baidu Netdisk](https://pan.baidu.com/s/1n9pRXuJkYYv4muNE6cp20A?pwd=yvwi) |
+| **MSD Prostate** | 10% (Split 1) | [Baidu Netdisk](https://pan.baidu.com/s/1p4-oGBXvuKS3mQaNAbjisA?pwd=h5zu) |
+| **MSD Prostate** | 10% (Split 2) | [Baidu Netdisk](https://pan.baidu.com/s/1cibi-NbCz6N9k0Khrqz-Qg?pwd=dxsu)  |
+| **MS-CMRSEG19** | 20% (Split 1) | [Baidu Netdisk](https://pan.baidu.com/s/1U5roRzyMTgvqNpzWSBmGzg?pwd=ihau )  |
+| **MS-CMRSEG19** | 20% (Split 2) | [Baidu Netdisk](https://pan.baidu.com/s/1rVAEjuDri7rLqj-hrNIiVQ?pwd=neb8)|
 
 During inference, only the lightweight segmentation network is required; the diffusion-based rectifier is used only during training.
 
