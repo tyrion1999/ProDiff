@@ -101,6 +101,9 @@ Use the following command to evaluate a trained ProDiff model on ACDC:
 ```bash
 CUDA_VISIBLE_DEVICES=0 python test_2D_ACDC.py --root_path ./dataset/ACDC --ckpt /path/to/checkpoint.pth --num_classes 4
 ```
+## Inference
+
+You can download our pretrained models for different datasets from [this](https://pan.baidu.com/s/1N9LF3Or9Chjbqh9_kvaXCg?pwd=6iwx).Please note that the repository is still being updated, and more checkpoints will be uploaded.
 
 ## Acknowledgement
 
