@@ -18,9 +18,9 @@ pip install -r requirements.txt
 
 All datasets provided below have already been preprocessed. You only need to download and extract each archive, then place the extracted files in the corresponding directories shown below. No additional preprocessing is required.
 
-- **ACDC**: The original dataset is available from [ACDC](https://github.com/HiLab-git/SSL4MIS/tree/master/data/ACDC). Our preprocessed data are available from [Baidu Netdisk](https://pan.baidu.com/s/1eAast_2kzwuuuipcFeU6Bw?pwd=4p2n) (`ACDC(1).rar`, extraction code: `4p2n`).
-- **MS-CMRSEG19**: The original dataset is available from the [official website](https://zmiclab.github.io/zxh/0/mscmrseg19/). Our preprocessed data are available from [Baidu Netdisk](https://pan.baidu.com/s/1qgQ09cEDteujO4uDbzHOFg?pwd=xcdr) (`mscmrseg19.rar`, extraction code: `xcdr`).
-- **MSD Prostate**: The original dataset is available from the [Medical Segmentation Decathlon](http://medicaldecathlon.com/). Our preprocessed data are available from [Baidu Netdisk](https://pan.baidu.com/s/1_D1ZOd-9IdujJhtPjrr_uw?pwd=ij5i) (`MSD Prostate.rar`, extraction code: `ij5i`).
+- **ACDC**: The original dataset is available from [ACDC](https://github.com/HiLab-git/SSL4MIS/tree/master/data/ACDC). Our preprocessed data are available from [Baidu Netdisk](https://pan.baidu.com/s/1eAast_2kzwuuuipcFeU6Bw?pwd=4p2n).
+- **MS-CMRSEG19**: The original dataset is available from the [official website](https://zmiclab.github.io/zxh/0/mscmrseg19/). Our preprocessed data are available from [Baidu Netdisk](https://pan.baidu.com/s/1qgQ09cEDteujO4uDbzHOFg?pwd=xcdr).
+- **MSD Prostate**: The original dataset is available from the [Medical Segmentation Decathlon](http://medicaldecathlon.com/). Our preprocessed data are available from [Baidu Netdisk](https://pan.baidu.com/s/1_D1ZOd-9IdujJhtPjrr_uw?pwd=ij5i).
 
 Organize the datasets as follows:
 
