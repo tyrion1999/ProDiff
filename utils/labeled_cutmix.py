@@ -1,9 +1,10 @@
 """
-Student-only labeled virtual CutMix.
+Labeled virtual CutMix for the segmentation network only.
 
-This utility builds an extra labeled batch for supervised student training.
-It never modifies the clean weak/strong tensors in-place, so the pseudo-label
-source and the diffusion teacher path can keep using clean weak/strong inputs.
+This utility builds an extra labeled batch for supervised training of the
+segmentation network. It never modifies the clean weak/strong tensors in-place,
+so the pseudo-label source and the diffusion rectifier path can keep using
+clean weak/strong inputs.
 """
 
 import random
@@ -11,7 +12,7 @@ import random
 import torch
 
 
-__all__ = ["build_student_labeled_cutmix"]
+__all__ = ["build_labeled_cutmix"]
 
 
 def _compute_centroid(mask: torch.Tensor):
@@ -60,7 +61,7 @@ def _shift_2d(tensor: torch.Tensor, dy: int, dx: int, fill_value=0):
     raise ValueError(f"_shift_2d expects 2D or 3D tensor, got dim={tensor.dim()}")
 
 
-def build_student_labeled_cutmix(
+def build_labeled_cutmix(
     weak_batch: torch.Tensor,
     strong_batch: torch.Tensor,
     label_batch: torch.Tensor,

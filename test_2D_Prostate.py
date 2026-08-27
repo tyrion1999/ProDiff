@@ -19,8 +19,7 @@ parser.add_argument('--root_path', type=str, default='/workspace/dataset/PROSTAT
 parser.add_argument('--model', type=str, default='unet', help='model_name')
 parser.add_argument('--num_classes', type=int, default=3, help='output channel of network')
 parser.add_argument('--labeled_num', type=int, default=2, help='labeled data')
-parser.add_argument('--ckpt', type=str, default='/workspace/DiffRect-main/logs/359 clean student labeled cutmix weak ddim no feat prostate split1_2_labeled/unet/unet_best_model_iter_num32200_0.6051593192615027.pth',
-                    help='checkpoint_name')
+parser.add_argument('--ckpt', type=str, default='', help='checkpoint_name')
 
 
 def calculate_metric_percase(pred, gt):

@@ -19,8 +19,7 @@ parser.add_argument('--root_path', type=str, default='/workspace/dataset/ACDC', 
 parser.add_argument('--model', type=str, default='unet', help='model_name')
 parser.add_argument('--num_classes', type=int, default=4, help='output channel of network')
 parser.add_argument('--labeled_num', type=int, default=3, help='labeled data')
-parser.add_argument('--ckpt', type=str,default='/workspace/DiffRect-main/logs/319 clean student labeled cutmix no feat_7_labeled/unet/unet_best_model_iter_num49325_0.9078747687763277.pth',
-                    help='checkpoint_name')
+parser.add_argument('--ckpt', type=str,default='', help='checkpoint_name')
 
 def calculate_metric_percase(pred, gt):
     pred[pred > 0] = 1

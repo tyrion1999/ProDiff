@@ -635,7 +635,7 @@ class UNet_LDMV2(nn.Module):
         """Forward for rectifier U-Net.
 
         Notes:
-        - 'pseudo_rgb' is a 3-channel pseudo-mask embedding (from student predictions).
+        - 'pseudo_rgb' is a 3-channel pseudo-mask embedding (from segmentation network predictions).
         - 'img' is the original image (1 channel in ACDC).
         - When training=False, we use DDIM sampling in latent/bottleneck space.
         """
@@ -679,7 +679,7 @@ class UNet_LDMV2(nn.Module):
             feat_ref = pred_xstart
         else:
             assert good is None
-            # DDIM sampling (teacher inference during training)
+            # DDIM sampling (rectifier inference during training)
             sample_xstart = self.deunet(
                 pred_type="ddim_sample",
                 embeddings=embeddings,

@@ -1,7 +1,6 @@
 import argparse
 import logging
 import os
-import math
 import inspect
 import random
 import sys
@@ -29,11 +28,11 @@ from dataloaders.dataset import (
 )
 from networks.net_factory import net_factory
 
-# Teacher (diffusion rectifier), image-only version: no CLIP/text branch and no text attention.
+# Diffusion rectifier, image-only version: no CLIP/text branch and no text attention.
 from networks.prodiff_mri import UNet_LDMV2
 
 from utils import losses, ramps, util
-from utils.labeled_cutmix import build_student_labeled_cutmix
+from utils.labeled_cutmix import build_labeled_cutmix
 from val_2D import test_single_volume_refinev2 as test_single_volume
 
 
@@ -42,7 +41,7 @@ parser = argparse.ArgumentParser()
 # ---- Data / Experiment ----
 parser.add_argument("--root_path", type=str, default="/workspace/dataset/PROSTATE_split1", help="dataset root")
 parser.add_argument("--exp", type=str, default="", help="experiment_name")
-parser.add_argument("--model", type=str, default="unet", help="student model name for net_factory")
+parser.add_argument("--model", type=str, default="unet", help="segmentation network name for net_factory")
 parser.add_argument("--max_iterations", type=int, default=50000, help="maximum iterations to train")
 parser.add_argument("--batch_size", type=int, default=8, help="batch size per gpu")
 parser.add_argument("--labeled_bs", type=int, default=3, help="labeled samples per batch")
@@ -55,14 +54,14 @@ parser.add_argument("--num_classes", type=int, default=3, help="number of classe
 parser.add_argument("--img_channels", type=int, default=1, help="input image channels")
 parser.add_argument("--load", default=False, action="store_true", help="restore checkpoint from snapshot_path")
 parser.add_argument("--conf_thresh", type=float, default=0.8, help="confidence threshold for pseudo labels")
-parser.add_argument("--refine_start", type=int, default=1000, help="start iter to distill from teacher")
+parser.add_argument("--refine_start", type=int, default=1000, help="start iter to distill from the rectifier")
 
 # ---- Consistency / loss weights ----
 parser.add_argument("--consistency", type=float, default=0.1, help="max consistency weight")
 parser.add_argument("--consistency_rampup", type=float, default=200.0, help="rampup length (epochs-ish)")
 
-# ---- Student-only virtual labeled augmentation ----
-parser.add_argument("--labeled_cutmix_w", type=float, default=0.2, help="weight for student-only labeled CutMix supervision")
+# ---- Virtual labeled augmentation for the segmentation network only ----
+parser.add_argument("--labeled_cutmix_w", type=float, default=0.2, help="weight for labeled CutMix supervision of the segmentation network")
 parser.add_argument("--labeled_cutmix_prob", type=float, default=0.25, help="per labeled receiver probability for virtual CutMix")
 parser.add_argument("--labeled_cutmix_min_area", type=int, default=200, help="minimum donor foreground area")
 parser.add_argument("--labeled_cutmix_max_area", type=int, default=20000, help="maximum donor foreground area")
@@ -71,22 +70,22 @@ parser.add_argument(
     type=str,
     default="both",
     choices=["weak", "strong", "both"],
-    help="which virtual labeled branch receives supervised student loss",
+    help="which virtual labeled branch receives supervised segmentation network loss",
 )
 
-# ---- Teacher diffusion hyper-params ----
+# ---- Rectifier diffusion hyper-params ----
 parser.add_argument("--ldm_beta_sch", type=str, default="cosine", help="beta schedule")
 parser.add_argument("--ts", type=int, default=10, help="diffusion steps")
 parser.add_argument("--ts_sample", type=int, default=4, help="sampling stride")
-parser.add_argument("--ref_consistency_weight", type=float, default=-1, help="teacher unsup weight override (-1: follow main)")
+parser.add_argument("--ref_consistency_weight", type=float, default=-1, help="rectifier unsup weight override (-1: follow main)")
 parser.add_argument("--bridge_proto_w", type=float, default=0.2, help="weight for labeled->unlabeled prototype bridge KL loss")
 parser.add_argument("--bridge_proto_temp", type=float, default=1.0, help="temperature for bridge prototype softmax")
 parser.add_argument("--no_color", default=False, action="store_true", help="disable color embedding (if supported)")
 parser.add_argument("--no_blur", default=False, action="store_true", help="disable blur aug")
 parser.add_argument("--rot", type=int, default=359, help="rotation aug")
 
-# ---- Physics-inspired reverse diffusion guidance (teacher DDIM only) ----
-parser.add_argument("--phys_guidance", type=int, default=0,help="Enable edge-aware anisotropic heat conduction during teacher DDIM sampling (1=on, 0=off)")
+# ---- Physics-inspired reverse diffusion guidance (rectifier DDIM only) ----
+parser.add_argument("--phys_guidance", type=int, default=0,help="Enable edge-aware anisotropic heat conduction during rectifier DDIM sampling (1=on, 0=off)")
 parser.add_argument("--phys_lambda0", type=float, default=0.00001,help="small initial physical-guidance strength to avoid hurting baseline")
 parser.add_argument("--phys_gamma", type=float, default=6.0, help="Fast decay so guidance mainly affects only the earliest DDIM steps")
 parser.add_argument("--phys_kappa", type=float, default=0.15, help="Edge sensitivity for anisotropic conduction; smaller means stronger edge stopping")
@@ -96,10 +95,9 @@ parser.add_argument("--phys_blend", type=float, default=0.02, help="Residual ble
 parser.add_argument("--phys_steps", type=str, default="2", help="Comma-separated DDIM steps (or ratios in [0,1]) where physics is applied; default only first step")
 parser.add_argument("--phys_start", type=int, default=28000,help="start iteration for physics guidance in Step3")
 
-# ---- Distillation (teacher -> student; test is student-only) ----
+# ---- Distillation (rectifier -> segmentation network; test uses the segmentation network only) ----
 parser.add_argument("--distill_rect_w", type=float, default=1.0, help="hard pseudo supervision weight")
 parser.add_argument("--distill_kl_w", type=float, default=0.5, help="soft KL distillation weight")
-parser.add_argument("--distill_feat_w", type=float, default=0.1, help="feature distillation weight")
 parser.add_argument("--distill_T", type=float, default=1.0, help="temperature for KL distillation")
 
 args = parser.parse_args()
@@ -227,7 +225,7 @@ def train(args, snapshot_path):
         ts_sample=args.ts_sample,
     ).cuda()
 
-    # --------- Teacher kw filtering wrapper ----------
+    # --------- Rectifier kw filtering wrapper ----------
     try:
         _refine_kw = set(inspect.signature(refine_model.forward).parameters.keys())
     except Exception:
@@ -304,7 +302,7 @@ def train(args, snapshot_path):
         as_weight = 1.0 - ent.mean() / np.log(args.num_classes)  # 标准化到[0,1]附近
         as_weight = as_weight.clamp(0.0, 1.0)
 
-        # ---- 4) 你原来的 comp_loss 逻辑保持不变（只建议同样做 nan_to_num）----
+       
         weak_prob2 = torch.nan_to_num(weak_prob, nan=0.0, posinf=0.0, neginf=0.0)
         strong_prob2 = torch.nan_to_num(strong_prob, nan=0.0, posinf=0.0, neginf=0.0)
 
@@ -335,73 +333,13 @@ def train(args, snapshot_path):
         p_u = _batch_proto(unlabeled_logits)
         return F.kl_div(p_u.log(), p_l, reduction="batchmean")
 
-    # --------- Color map (for teacher input) ----------
+    # --------- Color map (for rectifier input) ----------
     if args.num_classes == 4:
         color_map = {0: (0, 0, 0), 1: (255, 0, 0), 2: (0, 255, 0), 3: (0, 0, 255)}
     elif args.num_classes == 3:
         color_map = {0: (0, 0, 0), 1: (255, 0, 0), 2: (0, 255, 0)}
     else:
         color_map = {0: (0, 0, 0), 1: (255, 255, 255)}
-
-    # --------- Distill bottleneck hook (student) ----------
-    bn_capture = {"feat": None}
-
-    def _bn_hook(_m, _inp, _out):
-        if isinstance(_out, (tuple, list)):
-            _out = _out[0]
-        if torch.is_tensor(_out) and _out.dim() == 4:
-            bn_capture["feat"] = _out
-
-    def _pick_bottleneck_module(net: torch.nn.Module, x: torch.Tensor, num_classes_: int):
-        candidates = []
-        handles = []
-
-        def _tmp_hook(mod, _inp, out):
-            if isinstance(out, (tuple, list)):
-                out = out[0]
-            if not (torch.is_tensor(out) and out.dim() == 4):
-                return
-            b, c, h, w = out.shape
-            if c == num_classes_:
-                return
-            candidates.append((h * w, c, mod))
-
-        for mod in net.modules():
-            if isinstance(mod, torch.nn.Conv2d):
-                handles.append(mod.register_forward_hook(_tmp_hook))
-        try:
-            with torch.no_grad():
-                _ = net(x)
-        finally:
-            for h in handles:
-                try:
-                    h.remove()
-                except Exception:
-                    pass
-
-        if not candidates:
-            return None
-        candidates.sort(key=lambda t: (t[0], -t[1]))  # smallest spatial, largest channel
-        return candidates[0][2]
-
-    bn_handle = None
-    try:
-        bn_mod = None
-        if hasattr(model, "get_bottleneck_hook_module"):
-            try:
-                bn_mod = model.get_bottleneck_hook_module()
-            except Exception:
-                bn_mod = None
-        if bn_mod is None:
-            dummy = torch.zeros((1, args.img_channels, args.patch_size[0], args.patch_size[1]), device="cuda")
-            bn_mod = _pick_bottleneck_module(model, dummy, num_classes_=args.num_classes)
-        if bn_mod is not None:
-            bn_handle = bn_mod.register_forward_hook(_bn_hook)
-            logging.info(f"[Distill] selected bottleneck module: {bn_mod}")
-        else:
-            logging.warning("[Distill] failed to auto-select bottleneck module; feature distill disabled.")
-    except Exception as e:
-        logging.warning(f"[Distill] hook init failed; feature distill disabled. Reason: {e}")
 
     # --------- Resume ----------
     iter_num = 0
@@ -427,7 +365,7 @@ def train(args, snapshot_path):
                 model, optimizer, start_epoch, _ = util.load_checkpoint(
                     os.path.join(snapshot_path, model_checkpoint), model, optimizer
                 )
-                logging.info(f"Restored student checkpoint: {model_checkpoint}")
+                logging.info(f"Restored segmentation network checkpoint: {model_checkpoint}")
         except Exception as e:
             logging.warning(f"Restore failed: {e}")
 
@@ -447,7 +385,7 @@ def train(args, snapshot_path):
             label_batch[args.labeled_bs:] = torch.zeros_like(label_batch[args.labeled_bs:])
 
             # -----------------------------
-            # Step1: student SSL
+            # Step1: segmentation network SSL
             # -----------------------------
             out_w = _as_logits(model(weak_batch, iter_num=iter_num))
             out_s = _as_logits(model(strong_batch, iter_num=iter_num))
@@ -468,7 +406,7 @@ def train(args, snapshot_path):
             aug_sup_loss = torch.tensor(0.0, device=weak_batch.device)
             cutmix_labeled = 0
             if args.labeled_cutmix_w > 0 and args.labeled_cutmix_prob > 0 and args.labeled_bs > 1:
-                cutmix_weak, cutmix_strong, cutmix_label, cutmix_mask = build_student_labeled_cutmix(
+                cutmix_weak, cutmix_strong, cutmix_label, cutmix_mask = build_labeled_cutmix(
                     weak_batch,
                     strong_batch,
                     label_batch,
@@ -513,7 +451,7 @@ def train(args, snapshot_path):
             optimizer.step()
 
             # -----------------------------
-            # Prepare RGB masks for teacher
+            # Prepare RGB masks for the rectifier
             # -----------------------------
             pseudo_mask_s = (normalize(out_s_soft) > args.conf_thresh).float()
             out_s_masked = out_s_soft * pseudo_mask_s
@@ -535,10 +473,9 @@ def train(args, snapshot_path):
                 label_rgb = label_embed(color_map, label_np)  # (lb,3,H,W) cuda
 
             # -----------------------------
-            # Step2: teacher training (sequential cascade)
-            #   Labeled: Strong->Weak (æ®µ1) then midrw->GT (æ®µ2)
-            #   Unlabeled: only Strong->Weak (æ®µ1)
-            #   ref_comp_loss is removed (æ–¹æ¡ˆ1)
+            # Step2: rectifier training (sequential cascade)
+            #   Labeled: Strong->Weak (stage 1) then midrw->GT (stage 2)
+            #   Unlabeled: only Strong->Weak (stage 1)
             # -----------------------------
             # Segment 1 (Strong -> Weak) for labeled
             lat_loss_s2w_lab = torch.tensor(0.0, device="cuda")
@@ -599,7 +536,7 @@ def train(args, snapshot_path):
                 )
                 sup_loss_ref = sup_loss_cedice + lat_loss_sup
 
-            # Segment 1 (Strong -> Weak) for unlabeled only (no ref_comp_loss)
+            # Segment 1 (Strong -> Weak) for unlabeled only.
             lat_loss_unsup = torch.tensor(0.0, device="cuda")
             unsup_loss_ref = torch.tensor(0.0, device="cuda")
             bridge_proto_loss = torch.tensor(0.0, device="cuda")
@@ -629,7 +566,7 @@ def train(args, snapshot_path):
                 )
                 unsup_loss_ref = unsup_loss_cedice + lat_loss_unsup
 
-            # Total teacher loss
+            # Total rectifier loss
             ref_consistency_weight = get_current_consistency_weight(iter_num // 150)
             if args.ref_consistency_weight != -1:
                 ref_consistency_weight = args.ref_consistency_weight
@@ -652,18 +589,17 @@ def train(args, snapshot_path):
             refine_optimizer.step()
 
             # -----------------------------
-            # Step3: distill teacher rectification into student (UNLABELED ONLY)
-            #   -  硬监督（CE + Dice）：student 学 teacher 的 hard label
-            #   -  student 学 teacher 的 soft prob（只在高置信像素上）
-            #   - student bottleneck 特征向 teacher 的 rect_feat 对齐
-            #   Teacher only at train; test stays student-only.
+            # Step3: distill the rectifier output into the segmentation network (UNLABELED ONLY)
+            #   -  硬监督（CE + Dice）：segmentation network 学 rectifier 的 hard label
+            #   -  segmentation network 学 rectifier 的 soft prob（只在高置信像素上）
+            #   The rectifier is used at train time only; test uses the segmentation network alone.
             # -----------------------------
             if iter_num > args.refine_start:
                 with torch.no_grad():
-                    # teacher inference uses strong->weak path on unlabeled
+                    # rectifier inference uses strong->weak path on unlabeled
                     refine_model.eval()
                     out = refine_forward(
-                        pseudo_rgb_s[lb:], # 给 teacher 的伪标签/语义彩色编码
+                        pseudo_rgb_s[lb:], # 给 rectifier 的伪标签/语义彩色编码
                         t2_unlb_vec,
                         strong_batch[lb:], # 只取 batch 里 unlabeled 部分
                         training=False,
@@ -675,68 +611,37 @@ def train(args, snapshot_path):
                         phys_iters=args.phys_iters,
                         phys_blend=args.phys_blend,
                         phys_steps=args.phys_steps,
-                        return_aux=True,
                     )
-                    _lat0, tea_logits, tea_aux = parse_refine_out(out) # teacher 的分类 logits（每像素 C 类）
-                    tea_prob = torch.softmax(tea_logits, dim=1) # softmax 后的概率图
+                    _lat0, rect_logits, _aux = parse_refine_out(out) # rectifier 的分类 logits（每像素 C 类）
+                    rect_prob = torch.softmax(rect_logits, dim=1) # softmax 后的概率图
 
-                    # 置信度筛选：只相信 teacher 高置信的像素
-                    tea_mask = (normalize(tea_prob) > args.conf_thresh).float()
-                    tea_prob_masked = tea_prob * tea_mask
-                    tea_hard = torch.argmax(tea_prob_masked, dim=1)
-
-                    # teacher 的思路特征也拿出来（用于特征蒸馏）
-                    tea_feat = None
-                    if isinstance(tea_aux, dict):
-                        tea_feat = tea_aux.get("rect_feat", None)
+                    # 置信度筛选：只相信 rectifier 高置信的像素
+                    rect_mask = (normalize(rect_prob) > args.conf_thresh).float()
+                    rect_prob_masked = rect_prob * rect_mask
+                    rect_hard = torch.argmax(rect_prob_masked, dim=1)
 
                 refine_model.train()
 
-                # student forward strong (hook captures bottleneck)
-                bn_capture["feat"] = None # 挂 forward hook 抓到的 student bottleneck 特征（稍后用于 feat_loss）
-                stu_logits_all = _as_logits(model(strong_batch, iter_num=iter_num)) # strong_batch 包含 labeled+unlabeled 一起过 student
-                stu_logits_unlb = stu_logits_all[lb:]  # 只取 lb: 作为无标签部分来算硬监督损失
-                stu_prob_unlb = torch.softmax(stu_logits_unlb, dim=1)
+                # segmentation network forward strong
+                seg_logits_all = _as_logits(model(strong_batch, iter_num=iter_num)) # strong_batch 包含 labeled+unlabeled 一起过 segmentation network
+                seg_logits_unlb = seg_logits_all[lb:]  # 只取 lb: 作为无标签部分来算硬监督损失
+                seg_prob_unlb = torch.softmax(seg_logits_unlb, dim=1)
                 # 1.硬监督
-                rect_loss = ce_loss(stu_logits_unlb, tea_hard) + dice_loss(stu_prob_unlb, tea_hard.unsqueeze(1))
+                rect_loss = ce_loss(seg_logits_unlb, rect_hard) + dice_loss(seg_prob_unlb, rect_hard.unsqueeze(1))
 
-                # 2.软监督 teacher 不仅给答案，还给“每个类别的可能性分布”；student 学这种软信息，但只在 teacher 有把握的地方学。
+                # 2.软监督 rectifier 不仅给答案，还给"每个类别的可能性分布"；segmentation network 学这种软信息，但只在 rectifier 有把握的地方学。
                 kl_loss = torch.tensor(0.0, device="cuda")
                 if args.distill_kl_w > 0:
                     T = max(float(args.distill_T), 1e-6) # 温度
-                    tea_prob2 = tea_prob_masked / (tea_prob_masked.sum(dim=1, keepdim=True) + 1e-6) # 把 mask 后的 teacher prob 重新归一化
-                    logp = F.log_softmax(stu_logits_unlb / T, dim=1)  # (B,C,H,W)
-                    conf = tea_prob.max(dim=1, keepdim=True)[0]  # 每个像素 teacher 最相信的那个类的概率
-                    mask = (conf > args.conf_thresh).float()  # 只在 teacher真有把握的像素算 KL
+                    rect_prob2 = rect_prob_masked / (rect_prob_masked.sum(dim=1, keepdim=True) + 1e-6) # 把 mask 后的 rectifier prob 重新归一化
+                    logp = F.log_softmax(seg_logits_unlb / T, dim=1)  # (B,C,H,W)
+                    conf = rect_prob.max(dim=1, keepdim=True)[0]  # 每个像素 rectifier 最相信的那个类的概率
+                    mask = (conf > args.conf_thresh).float()  # 只在 rectifier 真有把握的像素算 KL
 
-                    kl_map = F.kl_div(logp, tea_prob2, reduction="none").sum(dim=1, keepdim=True)  # (B,1,H,W)
+                    kl_map = F.kl_div(logp, rect_prob2, reduction="none").sum(dim=1, keepdim=True)  # (B,1,H,W)
                     kl_loss = (kl_map * mask).mean() * (T * T)
 
-                # 3.特征蒸馏：让 student bottleneck 像 teacher rect_feat
-                feat_loss = torch.tensor(0.0, device="cuda")
-                if args.distill_feat_w > 0 and (tea_feat is not None) and (bn_capture["feat"] is not None):
-                    stu_bn = bn_capture["feat"][lb:] # 只取 lb: 作为无标签部分来算硬监督损失
-                    # 先把 student和 teacher 的特征图对齐到同样空间大小
-                    if stu_bn.shape[-2:] != tea_feat.shape[-2:]:
-                        stu_bn = F.interpolate(stu_bn, size=tea_feat.shape[-2:], mode="bilinear", align_corners=False)
-
-                    stu_vec = F.adaptive_avg_pool2d(stu_bn, 1).flatten(1)
-                    tea_vec = F.adaptive_avg_pool2d(tea_feat, 1).flatten(1)
-
-                    # 如果维度不一样，做一个固定随机投影（只用于训练，不改网络结构）：
-                    if stu_vec.shape[1] != tea_vec.shape[1]:
-                        if not hasattr(args, "_distill_proj"):
-                            proj = torch.randn((tea_vec.shape[1], stu_vec.shape[1]), device="cuda") / math.sqrt(max(stu_vec.shape[1], 1))
-                            setattr(args, "_distill_proj", proj)
-                        proj = getattr(args, "_distill_proj")
-                        stu_vec = stu_vec @ proj.t()
-
-                    # 用余弦相似度做损失：
-                    stu_vec = stu_vec / (stu_vec.norm(dim=1, keepdim=True) + 1e-6)
-                    tea_vec = tea_vec / (tea_vec.norm(dim=1, keepdim=True) + 1e-6)
-                    feat_loss = 1.0 - (stu_vec * tea_vec).sum(dim=1).mean()
-
-                total_distill = (args.distill_rect_w * rect_loss + args.distill_kl_w * kl_loss + args.distill_feat_w * feat_loss)
+                total_distill = args.distill_rect_w * rect_loss + args.distill_kl_w * kl_loss
 
                 optimizer.zero_grad()
                 total_distill.backward()
@@ -751,15 +656,13 @@ def train(args, snapshot_path):
 
             if iter_num % 1 == 0:
                 logging.info(
-                    "iter %d | seg_loss %.4f | aug_sup %.4f | cutmix_labeled %d | ref_loss %.4f | bridge %.4f | distill(rect/kl/feat) %.4f / %.4f / %.4f"
+                    "iter %d | seg_loss %.4f | aug_sup %.4f | cutmix_labeled %d | ref_loss %.4f | bridge %.4f | distill %.4f"
                     % (iter_num, loss.item(), float(aug_sup_loss.item()), int(cutmix_labeled), refine_loss.item(),
                        float(bridge_proto_loss.item() if 'bridge_proto_loss' in locals() else 0.0),
-                       float(rect_loss.item() if 'rect_loss' in locals() else 0.0),
-                       float(kl_loss.item() if 'kl_loss' in locals() else 0.0),
-                       float(feat_loss.item() if 'feat_loss' in locals() else 0.0))
+                       float(total_distill.item() if 'total_distill' in locals() else 0.0))
                 )
 
-            # Validation (STUDENT ONLY)
+            # Validation (SEGMENTATION NETWORK ONLY)
             if iter_num % 50 == 0 and iter_num> 20000:
                 model.eval()
                 metric_list = 0.0
@@ -793,13 +696,6 @@ def train(args, snapshot_path):
 
         if iter_num >= max_iterations:
             break
-
-    # cleanup hook
-    if bn_handle is not None:
-        try:
-            bn_handle.remove()
-        except Exception:
-            pass
 
 
 if __name__ == "__main__":
@@ -844,7 +740,7 @@ if __name__ == "__main__":
         train_src = os.path.abspath(__file__)
         shutil.copy2(train_src, os.path.join(snapshot_path, os.path.basename(train_src)))
 
-        # 2.2 备份 teacher 网络和新增强文件，保证实验快照可复现
+        # 2.2 备份 rectifier 网络和新增强文件，保证实验快照可复现
         net_files = [
             "networks/prodiff_mri.py",
             "utils/labeled_cutmix.py",
