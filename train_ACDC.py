@@ -292,7 +292,7 @@ def train(args, snapshot_path):
         as_weight = 1.0 - ent.mean() / np.log(args.num_classes)  # 标准化到[0,1]附近
         as_weight = as_weight.clamp(0.0, 1.0)
 
-        # ---- 4) 你原来的 comp_loss 逻辑保持不变（只建议同样做 nan_to_num）----
+       
         weak_prob2 = torch.nan_to_num(weak_prob, nan=0.0, posinf=0.0, neginf=0.0)
         strong_prob2 = torch.nan_to_num(strong_prob, nan=0.0, posinf=0.0, neginf=0.0)
 
